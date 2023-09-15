@@ -1,70 +1,46 @@
+// Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-
-	"github.com/gorilla/websocket"
+	"time"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
+var addr = flag.String("addr", ":8080", "http service address")
 
-func index(rw http.ResponseWriter, r *http.Request) {
-	// http.ServeFile(rw, r, "index.html")
-	fmt.Fprintf(rw, "index")
-}
-
-func reader(conn *websocket.Conn) {
-	for {
-		messageType, message, err := conn.ReadMessage()
-		if err != nil {
-			log.Println(err)
-			break
-		}
-
-		log.Println(string(message))
-
-		if err := conn.WriteMessage(messageType, message); err != nil {
-			log.Println(err)
-			break
-		}
-	}
-}
-
-func wsEndpoint(rw http.ResponseWriter, r *http.Request) {
-	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
-	// fmt.Fprintf(rw, "wsEndpoint")
-
-	ws, err := upgrader.Upgrade(rw, r, nil)
-	if err != nil {
-		log.Println(err)
+func serveHome(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.URL)
+	if r.URL.Path != "/" {
+		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
-	defer ws.Close()
-
-	log.Println("Client Connected")
-
-	reader(ws)
-}
-
-func setupRoutes() {
-	http.HandleFunc("/", index)
-	http.HandleFunc("/ws", wsEndpoint)
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	fmt.Fprintf(w, "index")
 }
 
 func main() {
-	// os.Setenv("PORT", "8080")
-	setupRoutes()
-
-	port := os.Getenv("PORT")
-	addr := ":" + port
-
-	log.Println("server is listening on port", port)
-	log.Fatal(http.ListenAndServe(addr, nil))
-
+	flag.Parse()
+	hub := newHub()
+	go hub.run()
+	http.HandleFunc("/", serveHome)
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		serveWs(hub, w, r)
+	})
+	server := &http.Server{
+		Addr:              *addr,
+		ReadHeaderTimeout: 3 * time.Second,
+	}
+	err := server.ListenAndServe()
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
+	}
 }
