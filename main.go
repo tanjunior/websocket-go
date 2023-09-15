@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/websocket"
 )
@@ -57,8 +58,13 @@ func setupRoutes() {
 }
 
 func main() {
-	// setupAPI()
+	// os.Setenv("PORT", "8080")
 	setupRoutes()
-	log.Fatal(http.ListenAndServe(":8080", nil))
+
+	port := os.Getenv("PORT")
+	addr := ":" + port
+
+	log.Println("server is listening on port", port)
+	log.Fatal(http.ListenAndServe(addr, nil))
 
 }
