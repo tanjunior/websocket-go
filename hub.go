@@ -4,6 +4,11 @@
 
 package main
 
+import (
+	"encoding/json"
+	"log"
+)
+
 // Hub maintains the set of active clients and broadcasts messages to the
 // clients.
 type Hub struct {
@@ -29,17 +34,38 @@ func newHub() *Hub {
 	}
 }
 
+func Marshal(v interface{}) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+type Message struct {
+	UserName string `json:"userName"`
+	Message  string `json:"message"`
+}
+
 func (h *Hub) run() {
+	log.Printf("[hub.run] clients %v", h.clients)
 	for {
 		select {
 		case client := <-h.register:
+			log.Printf("[h.register] registering client to hub: %v\n%v", client, h.clients)
 			h.clients[client] = true
+			log.Printf("[h.register] Client registered to hub: %v\n%v", client, h.clients)
 		case client := <-h.unregister:
+			log.Printf("[h.unregister] client: %v", client)
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
 			}
+			m := Message{Message: "disconnected"}
+			b, err := Marshal(m)
+			if err == nil {
+				for client := range h.clients {
+					client.send <- b
+				}
+			}
 		case message := <-h.broadcast:
+			log.Printf("[h.broadcast] message: %v", string(message[:]))
 			for client := range h.clients {
 				select {
 				case client.send <- message:

@@ -122,14 +122,21 @@ func (c *Client) writePump() {
 
 // serveWs handles websocket requests from the peer.
 func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
+	log.Printf("query: %v", r.URL.Query())
+	log.Println("Received request", r.Header.Get("Sec-WebSocket-Key"))
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
+	log.Println("Upgrading connection...")
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
+	log.Printf("Connection upgraded... %v", &conn)
+
+	log.Println("Creating client...")
 	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
+	log.Printf("Client created %v", client)
 	client.hub.register <- client
 
 	// Allow collection of memory referenced by the caller by doing all work in
